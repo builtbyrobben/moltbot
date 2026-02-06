@@ -1,5 +1,6 @@
 import { html } from "lit";
 import type { GatewayHelloOk } from "../gateway.ts";
+import type { Tab } from "../navigation.ts";
 import type { UiSettings } from "../storage.ts";
 import { formatAgo, formatDurationMs } from "../format.ts";
 import { formatNextRun } from "../presenter.ts";
@@ -20,6 +21,7 @@ export type OverviewProps = {
   onSessionKeyChange: (next: string) => void;
   onConnect: () => void;
   onRefresh: () => void;
+  onNavigate: (tab: Tab) => void;
 };
 
 export function renderOverview(props: OverviewProps) {
@@ -219,17 +221,32 @@ export function renderOverview(props: OverviewProps) {
     </section>
 
     <section class="grid grid-cols-3" style="margin-top: 18px;">
-      <div class="card stat-card">
+      <div
+        class="card stat-card stat-card-clickable"
+        style="cursor: pointer;"
+        @click=${() => props.onNavigate("instances")}
+        title="Go to Instances"
+      >
         <div class="stat-label">Instances</div>
         <div class="stat-value">${props.presenceCount}</div>
         <div class="muted">Presence beacons in the last 5 minutes.</div>
       </div>
-      <div class="card stat-card">
+      <div
+        class="card stat-card stat-card-clickable"
+        style="cursor: pointer;"
+        @click=${() => props.onNavigate("sessions")}
+        title="Go to Sessions"
+      >
         <div class="stat-label">Sessions</div>
         <div class="stat-value">${props.sessionsCount ?? "n/a"}</div>
         <div class="muted">Recent session keys tracked by the gateway.</div>
       </div>
-      <div class="card stat-card">
+      <div
+        class="card stat-card stat-card-clickable"
+        style="cursor: pointer;"
+        @click=${() => props.onNavigate("cron")}
+        title="Go to Cron"
+      >
         <div class="stat-label">Cron</div>
         <div class="stat-value">
           ${props.cronEnabled == null ? "n/a" : props.cronEnabled ? "Enabled" : "Disabled"}

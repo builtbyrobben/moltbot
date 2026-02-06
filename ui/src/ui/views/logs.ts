@@ -140,7 +140,7 @@ export function renderLogs(props: LogsProps) {
               `
             : filtered.map(
                 (entry) => html`
-                <div class="log-row">
+                <div class="log-row ${entry.level === "warn" ? "log-row--warn" : entry.level === "error" || entry.level === "fatal" ? "log-row--error" : ""}">
                   <div class="log-time mono">${formatTime(entry.time)}</div>
                   <div class="log-level ${entry.level ?? ""}">${entry.level ?? ""}</div>
                   <div class="log-subsystem mono">${entry.subsystem ?? ""}</div>

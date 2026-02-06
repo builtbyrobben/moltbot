@@ -985,7 +985,7 @@
   box-shadow: var(--focus-ring);
 }
 
-/* Object (collapsible) */
+/* Object (collapsible) — top level */
 .cfg-object {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -993,8 +993,24 @@
   overflow: hidden;
 }
 
+/* Nested objects: lighter borders, left-accent instead of full border */
+.cfg-object .cfg-object {
+  border: none;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 0;
+  background: transparent;
+}
+
+.cfg-object .cfg-object .cfg-object {
+  border-left-color: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
 :root[data-theme="light"] .cfg-object {
   background: white;
+}
+
+:root[data-theme="light"] .cfg-object .cfg-object {
+  background: transparent;
 }
 
 .cfg-object__header {
@@ -1005,6 +1021,11 @@
   cursor: pointer;
   list-style: none;
   transition: background var(--duration-fast) ease;
+}
+
+/* Nested object headers: less padding */
+.cfg-object .cfg-object .cfg-object__header {
+  padding: 10px 14px;
 }
 
 .cfg-object__header:hover {
@@ -1019,6 +1040,13 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
+}
+
+/* Nested object titles: smaller, less prominent */
+.cfg-object .cfg-object .cfg-object__title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
 }
 
 .cfg-object__chevron {
@@ -1044,10 +1072,22 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* Nested help: no bottom border */
+.cfg-object .cfg-object .cfg-object__help {
+  border-bottom: none;
+  padding: 0 14px 10px;
+}
+
 .cfg-object__content {
   padding: 18px;
   display: grid;
   gap: 18px;
+}
+
+/* Nested content: tighter spacing */
+.cfg-object .cfg-object .cfg-object__content {
+  padding: 10px 14px;
+  gap: 14px;
 }
 
 /* Array */

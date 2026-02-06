@@ -91,6 +91,14 @@
   gap: 6px;
 }
 
+.stat-card-clickable {
+  transition: border-color var(--duration-fast) ease;
+}
+
+.stat-card-clickable:hover {
+  border-color: var(--border-strong);
+}
+
 .note-title {
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -1040,6 +1048,16 @@
 .log-chip.fatal {
   color: var(--danger);
   border-color: var(--danger-subtle);
+}
+
+/* Severity row tinting — subtle background to distinguish warn/error rows */
+.log-row.log-row--warn {
+  background: color-mix(in srgb, var(--warn) 5%, transparent);
+}
+
+.log-row.log-row--error,
+.log-row.log-row--fatal {
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
 }
 
 .log-subsystem {

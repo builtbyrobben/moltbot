@@ -125,6 +125,9 @@ const FIELD_LABELS: Record<string, string> = {
   "diagnostics.cacheTrace.includeSystem": "Cache Trace Include System",
   "agents.list.*.identity.avatar": "Identity Avatar",
   "agents.list.*.skills": "Agent Skill Filter",
+  "gateway.mode": "Gateway Mode",
+  "gateway.port": "Gateway Port",
+  "gateway.bind": "Bind Address",
   "gateway.remote.url": "Remote Gateway URL",
   "gateway.remote.sshTarget": "Remote Gateway SSH Target",
   "gateway.remote.sshIdentity": "Remote Gateway SSH Identity",
@@ -752,6 +755,168 @@ const FIELD_HELP: Record<string, string> = {
     "Optional PluralKit token for resolving private systems or members.",
   "channels.slack.dm.policy":
     'Direct message access control ("pairing" recommended). "open" requires channels.slack.dm.allowFrom=["*"].',
+
+  // --- gateway ---
+  "gateway.mode":
+    'Gateway run mode ("local" for local-only, "remote" to connect to a remote gateway).',
+  "gateway.port": "Port for the gateway HTTP/WebSocket server (default: 18789).",
+  "gateway.bind":
+    'Network interface to bind ("loopback" for 127.0.0.1, "all" for 0.0.0.0, or a specific address).',
+
+  // --- diagnostics ---
+  "diagnostics.enabled": "Enable diagnostics subsystem (default: true).",
+  "diagnostics.otel.enabled":
+    "Enable OpenTelemetry export (traces, metrics, and/or logs). Requires an OTLP-compatible collector.",
+  "diagnostics.otel.endpoint":
+    "OTLP collector endpoint (e.g. http://localhost:4318 for HTTP or http://localhost:4317 for gRPC).",
+  "diagnostics.otel.protocol": 'OTLP transport protocol ("http/protobuf" or "grpc").',
+  "diagnostics.otel.headers":
+    "Extra headers sent with OTLP requests (key-value pairs for auth, routing, etc.).",
+  "diagnostics.otel.serviceName":
+    'Service name reported to the collector (default: "openclaw-gateway").',
+  "diagnostics.otel.traces":
+    "Export distributed traces via OTLP (default: true when OTEL enabled).",
+  "diagnostics.otel.metrics": "Export metrics via OTLP (default: true when OTEL enabled).",
+  "diagnostics.otel.logs": "Export logs via OTLP (default: false).",
+  "diagnostics.otel.sampleRate":
+    "Trace sample rate (0.0-1.0). 1.0 traces everything; lower values reduce volume.",
+  "diagnostics.otel.flushIntervalMs":
+    "How often (ms) the OTLP exporter flushes buffered telemetry (default: 5000).",
+
+  // --- tools.exec ---
+  "tools.exec.host":
+    'Exec host environment ("local" runs commands on the gateway host; other values may route to sandboxes).',
+  "tools.exec.security":
+    'Exec security mode ("elevated" allows all commands; "standard" restricts to safe bins and approved tools).',
+  "tools.exec.ask":
+    'Exec ask/approval mode ("always" prompts before every exec; "auto" prompts only for unknown commands; "never" skips prompts).',
+  "tools.exec.node": "Node.js binary used for exec-based tools (default: auto-detected).",
+  "tools.exec.approvalRunningNoticeMs":
+    "Delay (ms) before showing a notice that an exec approval is pending (default: 5000).",
+
+  // --- tools.profile / alsoAllow / byProvider ---
+  "tools.profile":
+    'Active tool profile ("standard", "elevated", or "minimal"). Controls which tools are available by default.',
+  "tools.alsoAllow":
+    "Additional tools to allow on top of the active profile (array of tool names).",
+  "agents.list[].tools.profile":
+    'Per-agent tool profile override ("standard", "elevated", or "minimal").',
+  "agents.list[].tools.alsoAllow":
+    "Per-agent additional tool allowlist (merged with the global alsoAllow).",
+  "tools.byProvider":
+    "Per-provider tool policy overrides (keyed by provider ID). Lets you enable/disable specific tools for certain providers.",
+  "agents.list[].tools.byProvider": "Per-agent, per-provider tool policy overrides.",
+
+  // --- tools.media ---
+  "tools.media.image.enabled":
+    "Enable image understanding (vision). When enabled, images are analyzed and described for the agent.",
+  "tools.media.image.maxBytes":
+    "Maximum image file size (bytes) accepted for understanding (larger images are skipped).",
+  "tools.media.image.maxChars":
+    "Maximum characters in the image description returned to the agent.",
+  "tools.media.image.prompt":
+    "Custom prompt sent to the vision model when describing images (overrides the default).",
+  "tools.media.image.timeoutSeconds": "Timeout (seconds) for image understanding requests.",
+  "tools.media.image.attachments":
+    'Attachment handling policy for images ("inline" sends image data with the message; "describe" sends only the text description; "skip" ignores).',
+  "tools.media.image.models":
+    "Model(s) to use for image understanding (overrides the shared tools.media.models).",
+  "tools.media.image.scope":
+    'Channel scope for image understanding ("all", "direct", "group", or a channel ID list).',
+  "tools.media.models":
+    "Shared model list for all media understanding pipelines (image, audio, video). Per-type models override this.",
+  "tools.media.concurrency":
+    "Max concurrent media understanding jobs across all types (default: 2).",
+  "tools.media.audio.enabled":
+    "Enable audio understanding (speech-to-text transcription + analysis).",
+  "tools.media.audio.maxBytes": "Maximum audio file size (bytes) accepted for understanding.",
+  "tools.media.audio.maxChars":
+    "Maximum characters in the audio transcription returned to the agent.",
+  "tools.media.audio.prompt":
+    "Custom prompt sent to the audio model when transcribing audio (overrides the default).",
+  "tools.media.audio.timeoutSeconds": "Timeout (seconds) for audio understanding requests.",
+  "tools.media.audio.language":
+    'Language hint for audio transcription (ISO 639-1 code, e.g. "en", "es", "zh").',
+  "tools.media.audio.attachments":
+    'Attachment handling policy for audio ("inline", "describe", or "skip").',
+  "tools.media.audio.models":
+    "Model(s) to use for audio understanding (overrides the shared tools.media.models).",
+  "tools.media.audio.scope":
+    'Channel scope for audio understanding ("all", "direct", "group", or a channel ID list).',
+  "tools.media.video.enabled": "Enable video understanding (frame extraction + analysis).",
+  "tools.media.video.maxBytes": "Maximum video file size (bytes) accepted for understanding.",
+  "tools.media.video.maxChars":
+    "Maximum characters in the video description returned to the agent.",
+  "tools.media.video.prompt":
+    "Custom prompt sent to the vision model when describing video frames (overrides the default).",
+  "tools.media.video.timeoutSeconds": "Timeout (seconds) for video understanding requests.",
+  "tools.media.video.attachments":
+    'Attachment handling policy for videos ("inline", "describe", or "skip").',
+  "tools.media.video.models":
+    "Model(s) to use for video understanding (overrides the shared tools.media.models).",
+  "tools.media.video.scope":
+    'Channel scope for video understanding ("all", "direct", "group", or a channel ID list).',
+  "tools.links.enabled":
+    "Enable link understanding (fetches URLs shared in messages and summarizes them).",
+  "tools.links.maxLinks": "Maximum number of links to process per message (default: 3).",
+  "tools.links.timeoutSeconds": "Timeout (seconds) for fetching and understanding links.",
+  "tools.links.models": "Model(s) to use for link understanding.",
+  "tools.links.scope":
+    'Channel scope for link understanding ("all", "direct", "group", or a channel ID list).',
+
+  // --- ui ---
+  "ui.seamColor": "Accent color used in the Control UI and CLI output (hex color code).",
+  "ui.assistant.name": "Display name for the assistant shown in the UI and message headers.",
+  "ui.assistant.avatar": "Avatar emoji or image URL for the assistant shown in the UI.",
+
+  // --- browser ---
+  "browser.evaluateEnabled":
+    "Allow the browser_evaluate tool to run arbitrary JavaScript in the controlled browser (default: false).",
+  "browser.snapshotDefaults":
+    "Default settings for browser snapshots (screenshots and DOM captures).",
+  "browser.snapshotDefaults.mode": 'Default snapshot mode ("screenshot", "dom", or "hybrid").',
+  "browser.remoteCdpTimeoutMs":
+    "Timeout (ms) for connecting to a remote Chrome DevTools Protocol endpoint (default: 10000).",
+  "browser.remoteCdpHandshakeTimeoutMs":
+    "Timeout (ms) for the CDP WebSocket handshake after connection (default: 5000).",
+
+  // --- talk ---
+  "talk.apiKey":
+    "API key for the Talk voice provider (e.g. OpenAI Realtime API key). Falls back to OPENAI_API_KEY env var.",
+
+  // --- skills ---
+  "skills.load.watch":
+    "Watch skill directories for changes and hot-reload on save (default: true in dev).",
+  "skills.load.watchDebounceMs":
+    "Debounce window (ms) before reloading skills after a file change (default: 300).",
+
+  // --- agents.defaults ---
+  "agents.defaults.workspace":
+    "Default workspace directory for agents (used for file operations and relative path resolution).",
+  "agents.defaults.memorySearch.enabled":
+    "Enable vector-based memory search for agents (default: true).",
+  "agents.defaults.memorySearch.model":
+    'Embedding model for memory search (e.g. "text-embedding-3-small").',
+  "agents.defaults.memorySearch.chunking.tokens":
+    "Target chunk size in tokens for memory indexing (default: 256).",
+  "agents.defaults.memorySearch.chunking.overlap":
+    "Overlap tokens between consecutive memory chunks (default: 32).",
+  "agents.defaults.memorySearch.sync.onSessionStart":
+    "Trigger a memory reindex when a new session starts (default: true).",
+  "agents.defaults.memorySearch.sync.watchDebounceMs":
+    "Debounce window (ms) before reindexing after a memory file change (default: 1000).",
+  "agents.defaults.memorySearch.query.maxResults":
+    "Maximum number of memory search results returned per query (default: 5).",
+  "agents.defaults.memorySearch.query.minScore":
+    "Minimum similarity score (0-1) for memory search results to be included.",
+
+  // --- channels (missing help) ---
+  "channels.telegram.capabilities.inlineButtons":
+    "Enable inline button support for Telegram messages (default: true). Disable to suppress inline keyboards.",
+  "channels.signal.account":
+    "Phone number registered with Signal for the bot (E.164 format, e.g. +15551234567). Used by signal-cli.",
+  "channels.imessage.cliPath":
+    "Path to the openclaw-imessage CLI binary used for sending/receiving iMessages.",
 };
 
 const FIELD_PLACEHOLDERS: Record<string, string> = {
@@ -763,6 +928,18 @@ const FIELD_PLACEHOLDERS: Record<string, string> = {
   "gateway.controlUi.allowedOrigins": "https://control.example.com",
   "channels.mattermost.baseUrl": "https://chat.example.com",
   "agents.list[].identity.avatar": "avatars/openclaw.png",
+  "channels.telegram.botToken": "123456:ABC-DEF1234...",
+  "channels.discord.token": "MTk...",
+  "channels.slack.botToken": "xoxb-...",
+  "channels.slack.appToken": "xapp-...",
+  "channels.signal.account": "+15551234567",
+  "channels.imessage.cliPath": "/usr/local/bin/openclaw-imessage",
+  "tools.web.search.apiKey": "BSA...",
+  "talk.apiKey": "sk-...",
+  "agents.defaults.model.primary": "anthropic/claude-sonnet-4-5-20250929",
+  "ui.assistant.name": "Mr. Fox",
+  "ui.assistant.avatar": "\u{1F98A}",
+  "ui.seamColor": "#6366f1",
 };
 
 const SENSITIVE_PATTERNS = [/token/i, /password/i, /secret/i, /api.?key/i];

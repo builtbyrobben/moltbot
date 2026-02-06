@@ -437,7 +437,9 @@ function renderJob(job: CronJob, props: CronProps) {
             ?disabled=${props.busy}
             @click=${(event: Event) => {
               event.stopPropagation();
-              props.onRemove(job);
+              if (window.confirm("Are you sure you want to remove this cron job?")) {
+                props.onRemove(job);
+              }
             }}
           >
             Remove
