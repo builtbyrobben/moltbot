@@ -5,6 +5,9 @@ import type { HeartbeatRunner } from "../infra/heartbeat-runner.js";
 import type { PluginServicesHandle } from "../plugins/services.js";
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
 import { stopGmailWatcher } from "../hooks/gmail-watcher.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
+
+const log = createSubsystemLogger("gateway");
 
 export function createGatewayCloseHandler(params: {
   bonjourStop: (() => Promise<void>) | null;
@@ -40,8 +43,8 @@ export function createGatewayCloseHandler(params: {
     if (params.bonjourStop) {
       try {
         await params.bonjourStop();
-      } catch {
-        /* ignore */
+      } catch (err) {
+        log.warn(`cleanup: bonjour stop failed: ${String(err)}`);
       }
     }
     if (params.tailscaleCleanup) {
@@ -50,22 +53,24 @@ export function createGatewayCloseHandler(params: {
     if (params.canvasHost) {
       try {
         await params.canvasHost.close();
-      } catch {
-        /* ignore */
+      } catch (err) {
+        log.warn(`cleanup: canvas host close failed: ${String(err)}`);
       }
     }
     if (params.canvasHostServer) {
       try {
         await params.canvasHostServer.close();
-      } catch {
-        /* ignore */
+      } catch (err) {
+        log.warn(`cleanup: canvas host server close failed: ${String(err)}`);
       }
     }
     for (const plugin of listChannelPlugins()) {
       await params.stopChannel(plugin.id);
     }
     if (params.pluginServices) {
-      await params.pluginServices.stop().catch(() => {});
+      await params.pluginServices.stop().catch((err) => {
+        log.warn(`cleanup: plugin services stop failed: ${String(err)}`);
+      });
     }
     await stopGmailWatcher();
     params.cron.stop();
@@ -84,29 +89,33 @@ export function createGatewayCloseHandler(params: {
     if (params.agentUnsub) {
       try {
         params.agentUnsub();
-      } catch {
-        /* ignore */
+      } catch (err) {
+        log.warn(`cleanup: agent unsub failed: ${String(err)}`);
       }
     }
     if (params.heartbeatUnsub) {
       try {
         params.heartbeatUnsub();
-      } catch {
-        /* ignore */
+      } catch (err) {
+        log.warn(`cleanup: heartbeat unsub failed: ${String(err)}`);
       }
     }
     params.chatRunState.clear();
     for (const c of params.clients) {
       try {
         c.socket.close(1012, "service restart");
-      } catch {
-        /* ignore */
+      } catch (err) {
+        log.warn(`cleanup: client socket close failed: ${String(err)}`);
       }
     }
     params.clients.clear();
-    await params.configReloader.stop().catch(() => {});
+    await params.configReloader.stop().catch((err) => {
+      log.warn(`cleanup: config reloader stop failed: ${String(err)}`);
+    });
     if (params.browserControl) {
-      await params.browserControl.stop().catch(() => {});
+      await params.browserControl.stop().catch((err) => {
+        log.warn(`cleanup: browser control stop failed: ${String(err)}`);
+      });
     }
     await new Promise<void>((resolve) => params.wss.close(() => resolve()));
     const servers =
