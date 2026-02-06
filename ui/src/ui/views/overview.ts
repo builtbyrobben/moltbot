@@ -193,10 +193,16 @@ export function renderOverview(props: OverviewProps) {
             <div class="stat-label">Uptime</div>
             <div class="stat-value">${uptime}</div>
           </div>
-          <div class="stat">
-            <div class="stat-label">Tick Interval</div>
-            <div class="stat-value">${tick}</div>
-          </div>
+          ${
+            tick !== "n/a"
+              ? html`
+                  <div class="stat">
+                    <div class="stat-label">Poll Interval</div>
+                    <div class="stat-value">${tick}</div>
+                  </div>
+                `
+              : html``
+          }
           <div class="stat">
             <div class="stat-label">Last Channels Refresh</div>
             <div class="stat-value">
@@ -267,7 +273,7 @@ export function renderOverview(props: OverviewProps) {
         </div>
         <div>
           <div class="note-title">Session hygiene</div>
-          <div class="muted">Use /new or sessions.patch to reset context.</div>
+          <div class="muted">Use <span class="mono">/new</span> in chat or the Sessions tab to reset context.</div>
         </div>
         <div>
           <div class="note-title">Cron reminders</div>

@@ -36,7 +36,7 @@ const THINK_LEVELS = ["", "off", "minimal", "low", "medium", "high", "xhigh"] as
 const BINARY_THINK_LEVELS = ["", "off", "on"] as const;
 const VERBOSE_LEVELS = [
   { value: "", label: "inherit" },
-  { value: "off", label: "off (explicit)" },
+  { value: "off", label: "off" },
   { value: "on", label: "on" },
   { value: "full", label: "full" },
 ] as const;
@@ -192,12 +192,12 @@ export function renderSessions(props: SessionsProps) {
         <div class="table-head">
           <div>Key</div>
           <div>Label</div>
-          <div>Kind</div>
+          <div title="Session type: direct (1:1), group (multi-user), global (shared state)">Kind</div>
           <div>Updated</div>
-          <div>Tokens</div>
-          <div>Thinking</div>
-          <div>Verbose</div>
-          <div>Reasoning</div>
+          <div title="Tokens used / context window limit">Tokens</div>
+          <div title="Extended thinking budget — controls how much reasoning the model does">Thinking</div>
+          <div title="Include detailed tool execution output in responses">Verbose</div>
+          <div title="Chain-of-thought reasoning: stream (real-time), on (in output), off (hidden)">Reasoning</div>
           <div>Actions</div>
         </div>
         ${
@@ -264,6 +264,7 @@ function renderRow(
       <div>
         <select
           ?disabled=${disabled}
+          title="Thinking level for this session. 'inherit' uses the agent or global default."
           @change=${(e: Event) => {
             const value = (e.target as HTMLSelectElement).value;
             onPatch(row.key, {
@@ -282,6 +283,7 @@ function renderRow(
       <div>
         <select
           ?disabled=${disabled}
+          title="Verbose output for this session. 'inherit' uses the agent or global default."
           @change=${(e: Event) => {
             const value = (e.target as HTMLSelectElement).value;
             onPatch(row.key, { verboseLevel: value || null });
@@ -298,6 +300,7 @@ function renderRow(
       <div>
         <select
           ?disabled=${disabled}
+          title="Reasoning output for this session. 'stream' shows chain-of-thought in real time; 'on' includes it in final output. 'inherit' uses the agent or global default."
           @change=${(e: Event) => {
             const value = (e.target as HTMLSelectElement).value;
             onPatch(row.key, { reasoningLevel: value || null });
