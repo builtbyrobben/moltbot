@@ -200,10 +200,14 @@ export async function runCronIsolatedAgentTurn(params: {
       defaultModel: resolvedDefault.model,
     });
     if ("error" in resolvedOverride) {
-      return { status: "error", error: resolvedOverride.error };
+      // Fall through to the default model instead of failing the entire cron job
+      logWarn(
+        `[cron:${params.job.id}] model override "${modelOverrideRaw}" rejected (${resolvedOverride.error}); using default model`,
+      );
+    } else {
+      provider = resolvedOverride.ref.provider;
+      model = resolvedOverride.ref.model;
     }
-    provider = resolvedOverride.ref.provider;
-    model = resolvedOverride.ref.model;
   }
   const now = Date.now();
   const cronSession = resolveCronSession({

@@ -21,13 +21,27 @@ export function formatNextRun(ms?: number | null) {
   return `${formatMs(ms)} (${formatAgo(ms)})`;
 }
 
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) {
+    const val = n / 1_000_000;
+    return val % 1 === 0 ? `${val}M` : `${val.toFixed(1)}M`;
+  }
+  if (n >= 1_000) {
+    const val = n / 1_000;
+    return val % 1 === 0 ? `${val}K` : `${val.toFixed(1)}K`;
+  }
+  return String(n);
+}
+
 export function formatSessionTokens(row: GatewaySessionRow) {
   if (row.totalTokens == null) {
     return "n/a";
   }
   const total = row.totalTokens ?? 0;
   const ctx = row.contextTokens ?? 0;
-  return ctx ? `${total} / ${ctx}` : String(total);
+  return ctx
+    ? `${formatTokenCount(total)} / ${formatTokenCount(ctx)} tokens`
+    : `${formatTokenCount(total)} tokens`;
 }
 
 export function formatEventPayload(payload: unknown): string {

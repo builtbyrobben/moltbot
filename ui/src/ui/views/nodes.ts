@@ -292,16 +292,16 @@ type ExecApprovalsState = {
 
 const EXEC_APPROVALS_DEFAULT_SCOPE = "__defaults__";
 
-const SECURITY_OPTIONS: Array<{ value: ExecSecurity; label: string }> = [
-  { value: "deny", label: "Deny" },
-  { value: "allowlist", label: "Allowlist" },
-  { value: "full", label: "Full" },
+const SECURITY_OPTIONS: Array<{ value: ExecSecurity; label: string; desc: string }> = [
+  { value: "deny", label: "Deny", desc: "Block all exec commands (safest)" },
+  { value: "allowlist", label: "Allowlist", desc: "Only run commands matching allowlist patterns" },
+  { value: "full", label: "Full", desc: "Allow all exec commands (use with caution)" },
 ];
 
-const ASK_OPTIONS: Array<{ value: ExecAsk; label: string }> = [
-  { value: "off", label: "Off" },
-  { value: "on-miss", label: "On miss" },
-  { value: "always", label: "Always" },
+const ASK_OPTIONS: Array<{ value: ExecAsk; label: string; desc: string }> = [
+  { value: "off", label: "Off", desc: "Never prompt — use security mode directly" },
+  { value: "on-miss", label: "On miss", desc: "Prompt when command is not in allowlist" },
+  { value: "always", label: "Always", desc: "Always prompt before running any command" },
 ];
 
 function resolveBindingsState(props: NodesProps): BindingState {
@@ -674,10 +674,41 @@ function renderExecApprovalsTarget(state: ExecApprovalsState) {
 }
 
 function renderExecApprovalsTabs(state: ExecApprovalsState) {
+  const showSearch = state.agents.length > 10;
   return html`
-    <div class="row" style="margin-top: 12px; gap: 8px; flex-wrap: wrap;">
-      <span class="label">Scope</span>
-      <div class="row" style="gap: 8px; flex-wrap: wrap;">
+    <div style="margin-top: 12px;">
+      <div class="row" style="gap: 8px; align-items: center; margin-bottom: 8px;">
+        <span class="label">Scope</span>
+        ${
+          showSearch
+            ? html`
+          <input
+            type="text"
+            placeholder="Filter agents…"
+            style="padding: 4px 8px; font-size: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); color: var(--text); max-width: 180px;"
+            @input=${(event: Event) => {
+              const input = event.target as HTMLInputElement;
+              const filter = input.value.toLowerCase().trim();
+              const container = input.closest("div")?.parentElement?.querySelector(".scope-pills");
+              if (!container) {
+                return;
+              }
+              for (const btn of container.querySelectorAll("[data-agent-id]")) {
+                const id = (btn as HTMLElement).dataset.agentId ?? "";
+                const name = (btn as HTMLElement).dataset.agentName ?? "";
+                const visible =
+                  !filter ||
+                  id.toLowerCase().includes(filter) ||
+                  name.toLowerCase().includes(filter);
+                (btn as HTMLElement).style.display = visible ? "" : "none";
+              }
+            }}
+          />
+        `
+            : nothing
+        }
+      </div>
+      <div class="row scope-pills" style="gap: 8px; flex-wrap: wrap;">
         <button
           class="btn btn--sm ${state.selectedScope === EXEC_APPROVALS_DEFAULT_SCOPE ? "active" : ""}"
           @click=${() => state.onSelectScope(EXEC_APPROVALS_DEFAULT_SCOPE)}
@@ -689,6 +720,8 @@ function renderExecApprovalsTabs(state: ExecApprovalsState) {
           return html`
             <button
               class="btn btn--sm ${state.selectedScope === agent.id ? "active" : ""}"
+              data-agent-id=${agent.id}
+              data-agent-name=${agent.name ?? ""}
               @click=${() => state.onSelectScope(agent.id)}
             >
               ${label}
@@ -722,7 +755,10 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
         <div class="list-main">
           <div class="list-title">Security</div>
           <div class="list-sub">
-            ${isDefaults ? "Default security mode." : `Default: ${defaults.security}.`}
+            ${isDefaults ? "Controls which shell commands the agent can execute." : `Default: ${defaults.security}.`}
+          </div>
+          <div class="muted" style="margin-top: 4px; font-size: 11px;">
+            ${SECURITY_OPTIONS.find((o) => o.value === (securityValue === "__default__" ? defaults.security : securityValue))?.desc ?? ""}
           </div>
         </div>
         <div class="list-meta">
@@ -765,7 +801,10 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
         <div class="list-main">
           <div class="list-title">Ask</div>
           <div class="list-sub">
-            ${isDefaults ? "Default prompt policy." : `Default: ${defaults.ask}.`}
+            ${isDefaults ? "Whether to prompt for approval before executing commands." : `Default: ${defaults.ask}.`}
+          </div>
+          <div class="muted" style="margin-top: 4px; font-size: 11px;">
+            ${ASK_OPTIONS.find((o) => o.value === (askValue === "__default__" ? defaults.ask : askValue))?.desc ?? ""}
           </div>
         </div>
         <div class="list-meta">
@@ -810,7 +849,7 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
           <div class="list-sub">
             ${
               isDefaults
-                ? "Applied when the UI prompt is unavailable."
+                ? "Security mode used when no UI is available to prompt (e.g. cron jobs, headless runs)."
                 : `Default: ${defaults.askFallback}.`
             }
           </div>
@@ -857,7 +896,7 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
           <div class="list-sub">
             ${
               isDefaults
-                ? "Allow skill executables listed by the Gateway."
+                ? "Automatically allow CLI tools declared by installed skills (e.g. gh, kubectl, docker)."
                 : autoIsDefault
                   ? `Using default (${defaults.autoAllowSkills ? "on" : "off"}).`
                   : `Override (${autoEffective ? "on" : "off"}).`
@@ -901,7 +940,7 @@ function renderExecApprovalsAllowlist(state: ExecApprovalsState) {
     <div class="row" style="margin-top: 18px; justify-content: space-between;">
       <div>
         <div class="card-title">Allowlist</div>
-        <div class="card-sub">Case-insensitive glob patterns.</div>
+        <div class="card-sub">Case-insensitive glob patterns (e.g. <span class="mono">git*</span>, <span class="mono">/usr/bin/ls</span>, <span class="mono">npm*</span>).</div>
       </div>
       <button
         class="btn btn--sm"

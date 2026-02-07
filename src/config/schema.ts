@@ -11,6 +11,21 @@ export type ConfigUiHint = {
   sensitive?: boolean;
   placeholder?: string;
   itemTemplate?: unknown;
+  docsPath?: string;
+  impacts?: ConfigUiHintImpact[];
+};
+
+export type ConfigUiHintImpact = {
+  relation?: "requires" | "conflicts" | "recommends" | "risk";
+  targetPath?: string;
+  when?: "truthy" | "falsy" | "defined" | "notDefined" | "equals" | "notEquals" | "includes";
+  whenValue?: unknown;
+  targetWhen?: "truthy" | "falsy" | "defined" | "notDefined" | "equals" | "notEquals" | "includes";
+  targetValue?: unknown;
+  message: string;
+  fixValue?: unknown;
+  fixLabel?: string;
+  docsPath?: string;
 };
 
 export type ConfigUiHints = Record<string, ConfigUiHint>;
@@ -32,7 +47,19 @@ export type PluginUiMetadata = {
   description?: string;
   configUiHints?: Record<
     string,
-    Pick<ConfigUiHint, "label" | "help" | "advanced" | "sensitive" | "placeholder">
+    Pick<
+      ConfigUiHint,
+      | "label"
+      | "help"
+      | "group"
+      | "order"
+      | "advanced"
+      | "sensitive"
+      | "placeholder"
+      | "itemTemplate"
+      | "docsPath"
+      | "impacts"
+    >
   >;
   configSchema?: JsonSchemaNode;
 };
@@ -41,6 +68,7 @@ export type ChannelUiMetadata = {
   id: string;
   label?: string;
   description?: string;
+  docsPath?: string;
   configSchema?: JsonSchemaNode;
   configUiHints?: Record<string, ConfigUiHint>;
 };
@@ -125,6 +153,9 @@ const FIELD_LABELS: Record<string, string> = {
   "diagnostics.cacheTrace.includeSystem": "Cache Trace Include System",
   "agents.list.*.identity.avatar": "Identity Avatar",
   "agents.list.*.skills": "Agent Skill Filter",
+  "gateway.mode": "Gateway Mode",
+  "gateway.port": "Gateway Port",
+  "gateway.bind": "Bind Address",
   "gateway.remote.url": "Remote Gateway URL",
   "gateway.remote.sshTarget": "Remote Gateway SSH Target",
   "gateway.remote.sshIdentity": "Remote Gateway SSH Identity",
@@ -503,6 +534,38 @@ const FIELD_HELP: Record<string, string> = {
   "tools.web.fetch.firecrawl.timeoutSeconds": "Timeout in seconds for Firecrawl requests.",
   "channels.slack.allowBots":
     "Allow bot-authored messages to trigger Slack replies (default: false).",
+  "channels.*.allowBots":
+    "Allow replies to bot-authored messages for this channel (default: false). Keep mention/allowlist guardrails to avoid bot loops.",
+  "channels.*.accounts.*.allowBots":
+    "Allow replies to bot-authored messages for this account (default: false). Keep mention/allowlist guardrails to avoid bot loops.",
+  "channels.*.blockStreaming":
+    "Send completed reply blocks while the model is still generating for this channel/account.",
+  "channels.*.accounts.*.blockStreaming":
+    "Send completed reply blocks while the model is still generating for this account.",
+  "channels.*.capabilities":
+    "Optional runtime capability tags. Leave empty unless a feature/docs explicitly require a tag.",
+  "channels.*.accounts.*.capabilities":
+    "Optional runtime capability tags for this account. Leave empty unless a feature/docs explicitly require a tag.",
+  "channels.*.dm.policy":
+    'Direct message access policy for this channel account. "open" requires allowFrom to include "*".',
+  "channels.*.accounts.*.dm.policy":
+    'Direct message access policy for this account. "open" requires allowFrom to include "*".',
+  "channels.*.dmPolicy":
+    'Direct message access policy for this channel. "open" requires allowFrom to include "*".',
+  "channels.*.accounts.*.dmPolicy":
+    'Direct message access policy for this account. "open" requires allowFrom to include "*".',
+  "channels.discord.groupPolicy":
+    'Guild message policy. "allowlist" requires guild entries under channels.discord.guilds.',
+  "channels.discord.accounts.*.groupPolicy":
+    'Guild message policy for this account. "allowlist" requires guild entries under channels.discord.accounts.<id>.guilds.',
+  "channels.slack.groupPolicy":
+    'Channel message policy. "allowlist" requires channel entries under channels.slack.channels.',
+  "channels.slack.accounts.*.groupPolicy":
+    'Channel message policy for this account. "allowlist" requires channel entries under channels.slack.accounts.<id>.channels.',
+  "channels.googlechat.groupPolicy":
+    'Space message policy. "allowlist" requires space entries under channels.googlechat.groups.',
+  "channels.googlechat.accounts.*.groupPolicy":
+    'Space message policy for this account. "allowlist" requires space entries under channels.googlechat.accounts.<id>.groups.',
   "channels.slack.thread.historyScope":
     'Scope for Slack thread history context ("thread" isolates per thread; "channel" reuses channel history).',
   "channels.slack.thread.inheritParent":
@@ -750,8 +813,251 @@ const FIELD_HELP: Record<string, string> = {
     "Resolve PluralKit proxied messages and treat system members as distinct senders.",
   "channels.discord.pluralkit.token":
     "Optional PluralKit token for resolving private systems or members.",
+
+  // --- discord actions (top-level + per-account wildcard) ---
+  "channels.discord.actions.reactions":
+    "Allow the agent to add, remove, and list emoji reactions on Discord messages. Default: on.",
+  "channels.discord.actions.stickers":
+    "Allow the agent to send sticker messages in Discord channels. Default: on.",
+  "channels.discord.actions.emojiUploads":
+    "Allow the agent to upload custom emoji to the server. Default: on.",
+  "channels.discord.actions.stickerUploads":
+    "Allow the agent to upload custom stickers to the server. Default: on.",
+  "channels.discord.actions.polls":
+    "Allow the agent to create polls in Discord channels. Default: on.",
+  "channels.discord.actions.permissions":
+    "Allow the agent to view and manage channel permissions. Default: on.",
+  "channels.discord.actions.messages":
+    "Allow the agent to read, edit, and delete messages in Discord channels. Default: on.",
+  "channels.discord.actions.threads":
+    "Allow the agent to create, list, and reply in threads. Default: on.",
+  "channels.discord.actions.pins":
+    "Allow the agent to pin, unpin, and list pinned messages. Default: on.",
+  "channels.discord.actions.search":
+    "Allow the agent to search message history in Discord channels. Default: on.",
+  "channels.discord.actions.memberInfo":
+    "Allow the agent to look up member profiles, roles, and join dates. Default: on.",
+  "channels.discord.actions.roleInfo":
+    "Allow the agent to view role details (name, color, permissions). Default: on.",
+  "channels.discord.actions.roles":
+    "Allow the agent to assign and remove roles from members. Default: off — enable with caution.",
+  "channels.discord.actions.channelInfo":
+    "Allow the agent to read channel names, topics, and categories. Default: on.",
+  "channels.discord.actions.channels":
+    "Allow the agent to create, edit, delete, and move channels and categories. Default: on.",
+  "channels.discord.actions.voiceStatus":
+    "Allow the agent to view voice channel status (who is connected). Default: on.",
+  "channels.discord.actions.events":
+    "Allow the agent to list and create scheduled events in the server. Default: on.",
+  "channels.discord.actions.moderation":
+    "Allow the agent to timeout, kick, and ban members. Default: off — enable with caution.",
+  "channels.discord.actions.presence":
+    "Allow the agent to set its own presence/status (online, idle, DND). Default: off.",
+
+  // per-account discord action hints (wildcard)
+  "channels.discord.accounts.*.actions.reactions":
+    "Allow the agent to add, remove, and list emoji reactions on Discord messages. Default: on.",
+  "channels.discord.accounts.*.actions.stickers":
+    "Allow the agent to send sticker messages in Discord channels. Default: on.",
+  "channels.discord.accounts.*.actions.emojiUploads":
+    "Allow the agent to upload custom emoji to the server. Default: on.",
+  "channels.discord.accounts.*.actions.stickerUploads":
+    "Allow the agent to upload custom stickers to the server. Default: on.",
+  "channels.discord.accounts.*.actions.polls":
+    "Allow the agent to create polls in Discord channels. Default: on.",
+  "channels.discord.accounts.*.actions.permissions":
+    "Allow the agent to view and manage channel permissions. Default: on.",
+  "channels.discord.accounts.*.actions.messages":
+    "Allow the agent to read, edit, and delete messages in Discord channels. Default: on.",
+  "channels.discord.accounts.*.actions.threads":
+    "Allow the agent to create, list, and reply in threads. Default: on.",
+  "channels.discord.accounts.*.actions.pins":
+    "Allow the agent to pin, unpin, and list pinned messages. Default: on.",
+  "channels.discord.accounts.*.actions.search":
+    "Allow the agent to search message history in Discord channels. Default: on.",
+  "channels.discord.accounts.*.actions.memberInfo":
+    "Allow the agent to look up member profiles, roles, and join dates. Default: on.",
+  "channels.discord.accounts.*.actions.roleInfo":
+    "Allow the agent to view role details (name, color, permissions). Default: on.",
+  "channels.discord.accounts.*.actions.roles":
+    "Allow the agent to assign and remove roles from members. Default: off — enable with caution.",
+  "channels.discord.accounts.*.actions.channelInfo":
+    "Allow the agent to read channel names, topics, and categories. Default: on.",
+  "channels.discord.accounts.*.actions.channels":
+    "Allow the agent to create, edit, delete, and move channels and categories. Default: on.",
+  "channels.discord.accounts.*.actions.voiceStatus":
+    "Allow the agent to view voice channel status (who is connected). Default: on.",
+  "channels.discord.accounts.*.actions.events":
+    "Allow the agent to list and create scheduled events in the server. Default: on.",
+  "channels.discord.accounts.*.actions.moderation":
+    "Allow the agent to timeout, kick, and ban members. Default: off — enable with caution.",
+  "channels.discord.accounts.*.actions.presence":
+    "Allow the agent to set its own presence/status (online, idle, DND). Default: off.",
+
   "channels.slack.dm.policy":
     'Direct message access control ("pairing" recommended). "open" requires channels.slack.dm.allowFrom=["*"].',
+
+  // --- gateway ---
+  "gateway.mode":
+    'Gateway run mode ("local" for local-only, "remote" to connect to a remote gateway).',
+  "gateway.port": "Port for the gateway HTTP/WebSocket server (default: 18789).",
+  "gateway.bind":
+    'Network interface to bind ("loopback" for 127.0.0.1, "all" for 0.0.0.0, or a specific address).',
+
+  // --- diagnostics ---
+  "diagnostics.enabled": "Enable diagnostics subsystem (default: true).",
+  "diagnostics.otel.enabled":
+    "Enable OpenTelemetry export (traces, metrics, and/or logs). Requires an OTLP-compatible collector.",
+  "diagnostics.otel.endpoint":
+    "OTLP collector endpoint (e.g. http://localhost:4318 for HTTP or http://localhost:4317 for gRPC).",
+  "diagnostics.otel.protocol": 'OTLP transport protocol ("http/protobuf" or "grpc").',
+  "diagnostics.otel.headers":
+    "Extra headers sent with OTLP requests (key-value pairs for auth, routing, etc.).",
+  "diagnostics.otel.serviceName":
+    'Service name reported to the collector (default: "openclaw-gateway").',
+  "diagnostics.otel.traces":
+    "Export distributed traces via OTLP (default: true when OTEL enabled).",
+  "diagnostics.otel.metrics": "Export metrics via OTLP (default: true when OTEL enabled).",
+  "diagnostics.otel.logs": "Export logs via OTLP (default: false).",
+  "diagnostics.otel.sampleRate":
+    "Trace sample rate (0.0-1.0). 1.0 traces everything; lower values reduce volume.",
+  "diagnostics.otel.flushIntervalMs":
+    "How often (ms) the OTLP exporter flushes buffered telemetry (default: 5000).",
+
+  // --- tools.exec ---
+  "tools.exec.host":
+    'Exec host environment ("local" runs commands on the gateway host; other values may route to sandboxes).',
+  "tools.exec.security":
+    'Exec security mode ("elevated" allows all commands; "standard" restricts to safe bins and approved tools).',
+  "tools.exec.ask":
+    'Exec ask/approval mode ("always" prompts before every exec; "auto" prompts only for unknown commands; "never" skips prompts).',
+  "tools.exec.node": "Node.js binary used for exec-based tools (default: auto-detected).",
+  "tools.exec.approvalRunningNoticeMs":
+    "Delay (ms) before showing a notice that an exec approval is pending (default: 5000).",
+
+  // --- tools.profile / alsoAllow / byProvider ---
+  "tools.profile":
+    'Active tool profile ("standard", "elevated", or "minimal"). Controls which tools are available by default.',
+  "tools.alsoAllow":
+    "Additional tools to allow on top of the active profile (array of tool names).",
+  "agents.list[].tools.profile":
+    'Per-agent tool profile override ("standard", "elevated", or "minimal").',
+  "agents.list[].tools.alsoAllow":
+    "Per-agent additional tool allowlist (merged with the global alsoAllow).",
+  "tools.byProvider":
+    "Per-provider tool policy overrides (keyed by provider ID). Lets you enable/disable specific tools for certain providers.",
+  "agents.list[].tools.byProvider": "Per-agent, per-provider tool policy overrides.",
+
+  // --- tools.media ---
+  "tools.media.image.enabled":
+    "Enable image understanding (vision). When enabled, images are analyzed and described for the agent.",
+  "tools.media.image.maxBytes":
+    "Maximum image file size (bytes) accepted for understanding (larger images are skipped).",
+  "tools.media.image.maxChars":
+    "Maximum characters in the image description returned to the agent.",
+  "tools.media.image.prompt":
+    "Custom prompt sent to the vision model when describing images (overrides the default).",
+  "tools.media.image.timeoutSeconds": "Timeout (seconds) for image understanding requests.",
+  "tools.media.image.attachments":
+    'Attachment handling policy for images ("inline" sends image data with the message; "describe" sends only the text description; "skip" ignores).',
+  "tools.media.image.models":
+    "Model(s) to use for image understanding (overrides the shared tools.media.models).",
+  "tools.media.image.scope":
+    'Channel scope for image understanding ("all", "direct", "group", or a channel ID list).',
+  "tools.media.models":
+    "Shared model list for all media understanding pipelines (image, audio, video). Per-type models override this.",
+  "tools.media.concurrency":
+    "Max concurrent media understanding jobs across all types (default: 2).",
+  "tools.media.audio.enabled":
+    "Enable audio understanding (speech-to-text transcription + analysis).",
+  "tools.media.audio.maxBytes": "Maximum audio file size (bytes) accepted for understanding.",
+  "tools.media.audio.maxChars":
+    "Maximum characters in the audio transcription returned to the agent.",
+  "tools.media.audio.prompt":
+    "Custom prompt sent to the audio model when transcribing audio (overrides the default).",
+  "tools.media.audio.timeoutSeconds": "Timeout (seconds) for audio understanding requests.",
+  "tools.media.audio.language":
+    'Language hint for audio transcription (ISO 639-1 code, e.g. "en", "es", "zh").',
+  "tools.media.audio.attachments":
+    'Attachment handling policy for audio ("inline", "describe", or "skip").',
+  "tools.media.audio.models":
+    "Model(s) to use for audio understanding (overrides the shared tools.media.models).",
+  "tools.media.audio.scope":
+    'Channel scope for audio understanding ("all", "direct", "group", or a channel ID list).',
+  "tools.media.video.enabled": "Enable video understanding (frame extraction + analysis).",
+  "tools.media.video.maxBytes": "Maximum video file size (bytes) accepted for understanding.",
+  "tools.media.video.maxChars":
+    "Maximum characters in the video description returned to the agent.",
+  "tools.media.video.prompt":
+    "Custom prompt sent to the vision model when describing video frames (overrides the default).",
+  "tools.media.video.timeoutSeconds": "Timeout (seconds) for video understanding requests.",
+  "tools.media.video.attachments":
+    'Attachment handling policy for videos ("inline", "describe", or "skip").',
+  "tools.media.video.models":
+    "Model(s) to use for video understanding (overrides the shared tools.media.models).",
+  "tools.media.video.scope":
+    'Channel scope for video understanding ("all", "direct", "group", or a channel ID list).',
+  "tools.links.enabled":
+    "Enable link understanding (fetches URLs shared in messages and summarizes them).",
+  "tools.links.maxLinks": "Maximum number of links to process per message (default: 3).",
+  "tools.links.timeoutSeconds": "Timeout (seconds) for fetching and understanding links.",
+  "tools.links.models": "Model(s) to use for link understanding.",
+  "tools.links.scope":
+    'Channel scope for link understanding ("all", "direct", "group", or a channel ID list).',
+
+  // --- ui ---
+  "ui.seamColor": "Accent color used in the Control UI and CLI output (hex color code).",
+  "ui.assistant.name": "Display name for the assistant shown in the UI and message headers.",
+  "ui.assistant.avatar": "Avatar emoji or image URL for the assistant shown in the UI.",
+
+  // --- browser ---
+  "browser.evaluateEnabled":
+    "Allow the browser_evaluate tool to run arbitrary JavaScript in the controlled browser (default: false).",
+  "browser.snapshotDefaults":
+    "Default settings for browser snapshots (screenshots and DOM captures).",
+  "browser.snapshotDefaults.mode": 'Default snapshot mode ("screenshot", "dom", or "hybrid").',
+  "browser.remoteCdpTimeoutMs":
+    "Timeout (ms) for connecting to a remote Chrome DevTools Protocol endpoint (default: 10000).",
+  "browser.remoteCdpHandshakeTimeoutMs":
+    "Timeout (ms) for the CDP WebSocket handshake after connection (default: 5000).",
+
+  // --- talk ---
+  "talk.apiKey":
+    "API key for the Talk voice provider (e.g. OpenAI Realtime API key). Falls back to OPENAI_API_KEY env var.",
+
+  // --- skills ---
+  "skills.load.watch":
+    "Watch skill directories for changes and hot-reload on save (default: true in dev).",
+  "skills.load.watchDebounceMs":
+    "Debounce window (ms) before reloading skills after a file change (default: 300).",
+
+  // --- agents.defaults ---
+  "agents.defaults.workspace":
+    "Default workspace directory for agents (used for file operations and relative path resolution).",
+  "agents.defaults.memorySearch.enabled":
+    "Enable vector-based memory search for agents (default: true).",
+  "agents.defaults.memorySearch.model":
+    'Embedding model for memory search (e.g. "text-embedding-3-small").',
+  "agents.defaults.memorySearch.chunking.tokens":
+    "Target chunk size in tokens for memory indexing (default: 256).",
+  "agents.defaults.memorySearch.chunking.overlap":
+    "Overlap tokens between consecutive memory chunks (default: 32).",
+  "agents.defaults.memorySearch.sync.onSessionStart":
+    "Trigger a memory reindex when a new session starts (default: true).",
+  "agents.defaults.memorySearch.sync.watchDebounceMs":
+    "Debounce window (ms) before reindexing after a memory file change (default: 1000).",
+  "agents.defaults.memorySearch.query.maxResults":
+    "Maximum number of memory search results returned per query (default: 5).",
+  "agents.defaults.memorySearch.query.minScore":
+    "Minimum similarity score (0-1) for memory search results to be included.",
+
+  // --- channels (missing help) ---
+  "channels.telegram.capabilities.inlineButtons":
+    "Enable inline button support for Telegram messages (default: true). Disable to suppress inline keyboards.",
+  "channels.signal.account":
+    "Phone number registered with Signal for the bot (E.164 format, e.g. +15551234567). Used by signal-cli.",
+  "channels.imessage.cliPath":
+    "Path to the openclaw-imessage CLI binary used for sending/receiving iMessages.",
 };
 
 const FIELD_PLACEHOLDERS: Record<string, string> = {
@@ -763,6 +1069,312 @@ const FIELD_PLACEHOLDERS: Record<string, string> = {
   "gateway.controlUi.allowedOrigins": "https://control.example.com",
   "channels.mattermost.baseUrl": "https://chat.example.com",
   "agents.list[].identity.avatar": "avatars/openclaw.png",
+  "channels.telegram.botToken": "123456:ABC-DEF1234...",
+  "channels.discord.token": "MTk...",
+  "channels.slack.botToken": "xoxb-...",
+  "channels.slack.appToken": "xapp-...",
+  "channels.signal.account": "+15551234567",
+  "channels.imessage.cliPath": "/usr/local/bin/openclaw-imessage",
+  "tools.web.search.apiKey": "BSA...",
+  "talk.apiKey": "sk-...",
+  "agents.defaults.model.primary": "anthropic/claude-sonnet-4-5-20250929",
+  "ui.assistant.name": "Mr. Fox",
+  "ui.assistant.avatar": "\u{1F98A}",
+  "ui.seamColor": "#6366f1",
+};
+
+const FIELD_DOCS: Record<string, string> = {
+  "gateway.mode": "/web/dashboard",
+  "gateway.bind": "/web/dashboard",
+  "gateway.controlUi.allowInsecureAuth": "/web/control-ui#insecure-http",
+  "channels.*.allowBots": "/gateway/configuration",
+  "channels.*.accounts.*.allowBots": "/gateway/configuration",
+  "channels.*.blockStreaming": "/concepts/streaming",
+  "channels.*.accounts.*.blockStreaming": "/concepts/streaming",
+  "channels.*.dm.policy": "/gateway/security",
+  "channels.*.accounts.*.dm.policy": "/gateway/security",
+  "channels.*.dmPolicy": "/gateway/security",
+  "channels.*.accounts.*.dmPolicy": "/gateway/security",
+  "channels.discord.groupPolicy": "/channels/discord",
+  "channels.discord.accounts.*.groupPolicy": "/channels/discord",
+  "channels.slack.groupPolicy": "/channels/slack",
+  "channels.slack.accounts.*.groupPolicy": "/channels/slack",
+  "channels.googlechat.groupPolicy": "/channels/googlechat",
+  "channels.googlechat.accounts.*.groupPolicy": "/channels/googlechat",
+  "channels.discord.actions.roles": "/channels/discord",
+  "channels.discord.actions.moderation": "/channels/discord",
+  "channels.discord.accounts.*.actions.roles": "/channels/discord",
+  "channels.discord.accounts.*.actions.moderation": "/channels/discord",
+};
+
+const FIELD_IMPACTS: Record<string, ConfigUiHintImpact[]> = {
+  "gateway.mode": [
+    {
+      relation: "requires",
+      when: "equals",
+      whenValue: "remote",
+      targetPath: "gateway.remote.url",
+      targetWhen: "defined",
+      message: "Remote mode requires a Remote Gateway URL.",
+    },
+    {
+      relation: "recommends",
+      when: "equals",
+      whenValue: "remote",
+      targetPath: "gateway.remote.token",
+      targetWhen: "defined",
+      message: "Set a remote token (or password) to avoid unauthorized connection errors.",
+    },
+  ],
+  "gateway.bind": [
+    {
+      relation: "risk",
+      when: "notEquals",
+      whenValue: "loopback",
+      message:
+        "Non-loopback bind exposes the gateway over the network. Keep auth on and firewall access tightly.",
+    },
+  ],
+  "gateway.controlUi.allowInsecureAuth": [
+    {
+      relation: "risk",
+      when: "truthy",
+      message:
+        "Insecure auth allows token auth over plain HTTP. Prefer HTTPS (or loopback) for dashboard access.",
+    },
+  ],
+  "channels.*.allowBots": [
+    {
+      relation: "risk",
+      when: "truthy",
+      message:
+        "Allowing bot-authored messages can create bot-to-bot reply loops. Prefer mention/allowlist guardrails.",
+      docsPath: "/gateway/security",
+    },
+  ],
+  "channels.*.accounts.*.allowBots": [
+    {
+      relation: "risk",
+      when: "truthy",
+      message:
+        "Allowing bot-authored messages can create bot-to-bot reply loops. Prefer mention/allowlist guardrails.",
+      docsPath: "/gateway/security",
+    },
+  ],
+  "channels.*.dm.policy": [
+    {
+      relation: "requires",
+      when: "equals",
+      whenValue: "open",
+      targetPath: "channels.*.dm.allowFrom",
+      targetWhen: "includes",
+      targetValue: "*",
+      message: 'Open DM policy requires allowFrom to include "*".',
+      fixValue: ["*"],
+      fixLabel: 'Allow all ("*")',
+      docsPath: "/gateway/security",
+    },
+  ],
+  "channels.*.accounts.*.dm.policy": [
+    {
+      relation: "requires",
+      when: "equals",
+      whenValue: "open",
+      targetPath: "channels.*.accounts.*.dm.allowFrom",
+      targetWhen: "includes",
+      targetValue: "*",
+      message: 'Open DM policy requires allowFrom to include "*".',
+      fixValue: ["*"],
+      fixLabel: 'Allow all ("*")',
+      docsPath: "/gateway/security",
+    },
+  ],
+  "channels.*.dmPolicy": [
+    {
+      relation: "requires",
+      when: "equals",
+      whenValue: "open",
+      targetPath: "channels.*.allowFrom",
+      targetWhen: "includes",
+      targetValue: "*",
+      message: 'Open DM policy requires allowFrom to include "*".',
+      fixValue: ["*"],
+      fixLabel: 'Allow all ("*")',
+      docsPath: "/gateway/security",
+    },
+  ],
+  "channels.*.accounts.*.dmPolicy": [
+    {
+      relation: "requires",
+      when: "equals",
+      whenValue: "open",
+      targetPath: "channels.*.accounts.*.allowFrom",
+      targetWhen: "includes",
+      targetValue: "*",
+      message: 'Open DM policy requires allowFrom to include "*".',
+      fixValue: ["*"],
+      fixLabel: 'Allow all ("*")',
+      docsPath: "/gateway/security",
+    },
+  ],
+  "channels.discord.groupPolicy": [
+    {
+      relation: "requires",
+      when: "equals",
+      whenValue: "allowlist",
+      targetPath: "channels.discord.guilds",
+      targetWhen: "defined",
+      message: 'Discord "allowlist" policy needs at least one guild entry.',
+      docsPath: "/channels/discord",
+    },
+  ],
+  "channels.discord.accounts.*.groupPolicy": [
+    {
+      relation: "requires",
+      when: "equals",
+      whenValue: "allowlist",
+      targetPath: "channels.discord.accounts.*.guilds",
+      targetWhen: "defined",
+      message: 'Discord "allowlist" policy needs at least one guild entry for this account.',
+      docsPath: "/channels/discord",
+    },
+  ],
+  "channels.slack.groupPolicy": [
+    {
+      relation: "requires",
+      when: "equals",
+      whenValue: "allowlist",
+      targetPath: "channels.slack.channels",
+      targetWhen: "defined",
+      message: 'Slack "allowlist" policy needs at least one channel entry.',
+      docsPath: "/channels/slack",
+    },
+  ],
+  "channels.slack.accounts.*.groupPolicy": [
+    {
+      relation: "requires",
+      when: "equals",
+      whenValue: "allowlist",
+      targetPath: "channels.slack.accounts.*.channels",
+      targetWhen: "defined",
+      message: 'Slack "allowlist" policy needs at least one channel entry for this account.',
+      docsPath: "/channels/slack",
+    },
+  ],
+  "channels.googlechat.groupPolicy": [
+    {
+      relation: "requires",
+      when: "equals",
+      whenValue: "allowlist",
+      targetPath: "channels.googlechat.groups",
+      targetWhen: "defined",
+      message: 'Google Chat "allowlist" policy needs at least one space entry.',
+      docsPath: "/channels/googlechat",
+    },
+  ],
+  "channels.googlechat.accounts.*.groupPolicy": [
+    {
+      relation: "requires",
+      when: "equals",
+      whenValue: "allowlist",
+      targetPath: "channels.googlechat.accounts.*.groups",
+      targetWhen: "defined",
+      message: 'Google Chat "allowlist" policy needs at least one space entry for this account.',
+      docsPath: "/channels/googlechat",
+    },
+  ],
+  "channels.telegram.streamMode": [
+    {
+      relation: "conflicts",
+      when: "notEquals",
+      whenValue: "off",
+      targetPath: "channels.telegram.blockStreaming",
+      targetWhen: "truthy",
+      message:
+        "Telegram draft streaming can suppress block streaming for a reply. Set streamMode=off for block-only behavior.",
+      docsPath: "/concepts/streaming",
+    },
+  ],
+  "channels.telegram.accounts.*.streamMode": [
+    {
+      relation: "conflicts",
+      when: "notEquals",
+      whenValue: "off",
+      targetPath: "channels.telegram.accounts.*.blockStreaming",
+      targetWhen: "truthy",
+      message:
+        "Telegram draft streaming can suppress block streaming for a reply. Set streamMode=off for block-only behavior.",
+      docsPath: "/concepts/streaming",
+    },
+  ],
+  "channels.telegram.blockStreaming": [
+    {
+      relation: "conflicts",
+      when: "truthy",
+      targetPath: "channels.telegram.streamMode",
+      targetWhen: "notEquals",
+      targetValue: "off",
+      message:
+        "Telegram streamMode is enabled. Use streamMode=off if you want block streaming to drive replies.",
+      docsPath: "/concepts/streaming",
+    },
+  ],
+  "channels.telegram.accounts.*.blockStreaming": [
+    {
+      relation: "conflicts",
+      when: "truthy",
+      targetPath: "channels.telegram.accounts.*.streamMode",
+      targetWhen: "notEquals",
+      targetValue: "off",
+      message:
+        "Telegram streamMode is enabled for this account. Use streamMode=off for block-only behavior.",
+      docsPath: "/concepts/streaming",
+    },
+  ],
+  "channels.discord.actions.roles": [
+    {
+      relation: "requires",
+      when: "truthy",
+      targetPath: "channels.discord.actions.permissions",
+      targetWhen: "truthy",
+      message: "Role management depends on permissions actions being enabled.",
+      fixValue: true,
+      fixLabel: "Enable permissions",
+    },
+  ],
+  "channels.discord.actions.moderation": [
+    {
+      relation: "requires",
+      when: "truthy",
+      targetPath: "channels.discord.actions.permissions",
+      targetWhen: "truthy",
+      message: "Moderation actions depend on permissions actions being enabled.",
+      fixValue: true,
+      fixLabel: "Enable permissions",
+    },
+  ],
+  "channels.discord.accounts.*.actions.roles": [
+    {
+      relation: "requires",
+      when: "truthy",
+      targetPath: "channels.discord.accounts.*.actions.permissions",
+      targetWhen: "truthy",
+      message: "Role management depends on permissions actions being enabled for this account.",
+      fixValue: true,
+      fixLabel: "Enable permissions",
+    },
+  ],
+  "channels.discord.accounts.*.actions.moderation": [
+    {
+      relation: "requires",
+      when: "truthy",
+      targetPath: "channels.discord.accounts.*.actions.permissions",
+      targetWhen: "truthy",
+      message: "Moderation actions depend on permissions actions being enabled for this account.",
+      fixValue: true,
+      fixLabel: "Enable permissions",
+    },
+  ],
 };
 
 const SENSITIVE_PATTERNS = [/token/i, /password/i, /secret/i, /api.?key/i];
@@ -844,6 +1456,14 @@ function buildBaseHints(): ConfigUiHints {
     const current = hints[path];
     hints[path] = current ? { ...current, placeholder } : { placeholder };
   }
+  for (const [path, docsPath] of Object.entries(FIELD_DOCS)) {
+    const current = hints[path];
+    hints[path] = current ? { ...current, docsPath } : { docsPath };
+  }
+  for (const [path, impacts] of Object.entries(FIELD_IMPACTS)) {
+    const current = hints[path];
+    hints[path] = current ? { ...current, impacts } : { impacts };
+  }
   return hints;
 }
 
@@ -911,10 +1531,12 @@ function applyChannelHints(hints: ConfigUiHints, channels: ChannelUiMetadata[]):
     const current = next[basePath] ?? {};
     const label = channel.label?.trim();
     const help = channel.description?.trim();
+    const docsPath = channel.docsPath?.trim();
     next[basePath] = {
       ...current,
       ...(label ? { label } : {}),
       ...(help ? { help } : {}),
+      ...(docsPath ? { docsPath } : {}),
     };
 
     const uiHints = channel.configUiHints ?? {};

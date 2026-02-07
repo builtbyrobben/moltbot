@@ -615,6 +615,55 @@
   gap: 22px;
 }
 
+.cfg-group {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-elevated) 85%, transparent);
+}
+
+.cfg-group__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, var(--muted));
+}
+
+.cfg-group__body {
+  display: grid;
+  gap: 14px;
+}
+
+.cfg-group--advanced {
+  padding: 0;
+  overflow: hidden;
+}
+
+.cfg-group--advanced > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--bg-accent);
+}
+
+.cfg-group--advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.cfg-group--advanced .cfg-group__body {
+  padding: 14px;
+}
+
 .cfg-field {
   display: grid;
   gap: 8px;
@@ -637,6 +686,70 @@
   font-size: 12px;
   color: var(--muted);
   line-height: 1.45;
+}
+
+.cfg-field__assist {
+  display: grid;
+  gap: 8px;
+}
+
+.cfg-field__docs {
+  display: inline-flex;
+  width: fit-content;
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.cfg-field__docs:hover {
+  text-decoration: underline;
+}
+
+.cfg-impact-list {
+  display: grid;
+  gap: 8px;
+}
+
+.cfg-impact {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-accent);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cfg-impact--info {
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+.cfg-impact--warn {
+  border-color: rgba(245, 158, 11, 0.3);
+  background: color-mix(in srgb, rgba(245, 158, 11, 0.08) 60%, var(--bg-accent));
+}
+
+.cfg-impact--danger {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: color-mix(in srgb, rgba(239, 68, 68, 0.08) 60%, var(--bg-accent));
+}
+
+.cfg-impact__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cfg-impact__link {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.cfg-impact__link:hover {
+  text-decoration: underline;
 }
 
 .cfg-field__error {
@@ -985,7 +1098,7 @@
   box-shadow: var(--focus-ring);
 }
 
-/* Object (collapsible) */
+/* Object (collapsible) — top level */
 .cfg-object {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -993,8 +1106,23 @@
   overflow: hidden;
 }
 
+/* Nested objects: remove stacked boxes and rely on spacing */
+.cfg-object .cfg-object {
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-md);
+  background: transparent;
+}
+
+.cfg-object .cfg-object .cfg-object {
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+}
+
 :root[data-theme="light"] .cfg-object {
   background: white;
+}
+
+:root[data-theme="light"] .cfg-object .cfg-object {
+  background: transparent;
 }
 
 .cfg-object__header {
@@ -1005,6 +1133,11 @@
   cursor: pointer;
   list-style: none;
   transition: background var(--duration-fast) ease;
+}
+
+/* Nested object headers: less padding */
+.cfg-object .cfg-object .cfg-object__header {
+  padding: 10px 14px;
 }
 
 .cfg-object__header:hover {
@@ -1018,6 +1151,13 @@
 .cfg-object__title {
   font-size: 14px;
   font-weight: 600;
+  color: var(--text);
+}
+
+/* Nested object titles: smaller, less prominent */
+.cfg-object .cfg-object .cfg-object__title {
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text);
 }
 
@@ -1044,10 +1184,22 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* Nested help: no bottom border */
+.cfg-object .cfg-object .cfg-object__help {
+  border-bottom: none;
+  padding: 0 14px 10px;
+}
+
 .cfg-object__content {
   padding: 18px;
   display: grid;
   gap: 18px;
+}
+
+/* Nested content: tighter spacing */
+.cfg-object .cfg-object .cfg-object__content {
+  padding: 10px 14px;
+  gap: 14px;
 }
 
 /* Array */
@@ -1121,6 +1273,18 @@
 .cfg-array__add-icon svg {
   width: 100%;
   height: 100%;
+}
+
+.cfg-array > .cfg-field__assist {
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cfg-array__meta {
+  padding: 10px 18px;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
 }
 
 .cfg-array__help {
@@ -1257,6 +1421,18 @@
 .cfg-map__add-icon svg {
   width: 100%;
   height: 100%;
+}
+
+.cfg-map > .cfg-field__assist {
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cfg-map__meta {
+  padding: 10px 18px;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
 }
 
 .cfg-map__empty {

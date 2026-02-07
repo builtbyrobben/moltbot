@@ -145,47 +145,62 @@ export function renderCron(props: CronProps) {
         </div>
         ${renderScheduleFields(props)}
         <div class="form-grid" style="margin-top: 12px;">
-          <label class="field">
-            <span>Session</span>
-            <select
-              .value=${props.form.sessionTarget}
-              @change=${(e: Event) =>
-                props.onFormChange({
-                  sessionTarget: (e.target as HTMLSelectElement)
-                    .value as CronFormState["sessionTarget"],
-                })}
-            >
-              <option value="main">Main</option>
-              <option value="isolated">Isolated</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Wake mode</span>
-            <select
-              .value=${props.form.wakeMode}
-              @change=${(e: Event) =>
-                props.onFormChange({
-                  wakeMode: (e.target as HTMLSelectElement).value as CronFormState["wakeMode"],
-                })}
-            >
-              <option value="now">Now</option>
-              <option value="next-heartbeat">Next heartbeat</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Payload</span>
-            <select
-              .value=${props.form.payloadKind}
-              @change=${(e: Event) =>
-                props.onFormChange({
-                  payloadKind: (e.target as HTMLSelectElement)
-                    .value as CronFormState["payloadKind"],
-                })}
-            >
-              <option value="systemEvent">System event</option>
-              <option value="agentTurn">Agent turn</option>
-            </select>
-          </label>
+          <div class="field">
+            <label class="field">
+              <span>Session</span>
+              <select
+                .value=${props.form.sessionTarget}
+                @change=${(e: Event) =>
+                  props.onFormChange({
+                    sessionTarget: (e.target as HTMLSelectElement)
+                      .value as CronFormState["sessionTarget"],
+                  })}
+              >
+                <option value="main">Main</option>
+                <option value="isolated">Isolated</option>
+              </select>
+            </label>
+            <div class="muted" style="font-size: 11px; margin-top: 2px;">
+              ${props.form.sessionTarget === "isolated" ? "Each run starts a fresh session — no shared context." : "Runs continue in the agent's main session with full context."}
+            </div>
+          </div>
+          <div class="field">
+            <label class="field">
+              <span>Wake mode</span>
+              <select
+                .value=${props.form.wakeMode}
+                @change=${(e: Event) =>
+                  props.onFormChange({
+                    wakeMode: (e.target as HTMLSelectElement).value as CronFormState["wakeMode"],
+                  })}
+              >
+                <option value="next-heartbeat">Next heartbeat</option>
+                <option value="now">Now</option>
+              </select>
+            </label>
+            <div class="muted" style="font-size: 11px; margin-top: 2px;">
+              ${props.form.wakeMode === "next-heartbeat" ? "Queued until the next heartbeat cycle." : "Runs immediately when the schedule fires."}
+            </div>
+          </div>
+          <div class="field">
+            <label class="field">
+              <span>Payload</span>
+              <select
+                .value=${props.form.payloadKind}
+                @change=${(e: Event) =>
+                  props.onFormChange({
+                    payloadKind: (e.target as HTMLSelectElement)
+                      .value as CronFormState["payloadKind"],
+                  })}
+              >
+                <option value="systemEvent">System event</option>
+                <option value="agentTurn">Agent turn</option>
+              </select>
+            </label>
+            <div class="muted" style="font-size: 11px; margin-top: 2px;">
+              ${props.form.payloadKind === "agentTurn" ? "Sends a message to the agent and waits for a reply." : "Fires a system event the agent can react to via hooks."}
+            </div>
+          </div>
         </div>
         <label class="field" style="margin-top: 12px;">
           <span>${props.form.payloadKind === "systemEvent" ? "System text" : "Agent message"}</span>
@@ -202,20 +217,25 @@ export function renderCron(props: CronProps) {
           props.form.payloadKind === "agentTurn"
             ? html`
                 <div class="form-grid" style="margin-top: 12px;">
-                  <label class="field">
-                    <span>Delivery</span>
-                    <select
-                      .value=${props.form.deliveryMode}
-                      @change=${(e: Event) =>
-                        props.onFormChange({
-                          deliveryMode: (e.target as HTMLSelectElement)
-                            .value as CronFormState["deliveryMode"],
-                        })}
-                    >
-                      <option value="announce">Announce summary (default)</option>
-                      <option value="none">None (internal)</option>
-                    </select>
-                  </label>
+                  <div class="field">
+                    <label class="field">
+                      <span>Delivery</span>
+                      <select
+                        .value=${props.form.deliveryMode}
+                        @change=${(e: Event) =>
+                          props.onFormChange({
+                            deliveryMode: (e.target as HTMLSelectElement)
+                              .value as CronFormState["deliveryMode"],
+                          })}
+                      >
+                        <option value="announce">Announce summary (default)</option>
+                        <option value="none">None (internal)</option>
+                      </select>
+                    </label>
+                    <div class="muted" style="font-size: 11px; margin-top: 2px;">
+                      ${props.form.deliveryMode === "announce" ? "Posts a summary of the run to a channel." : "Run completes silently with no output."}
+                    </div>
+                  </div>
                   <label class="field">
                     <span>Timeout (seconds)</span>
                     <input
@@ -437,7 +457,9 @@ function renderJob(job: CronJob, props: CronProps) {
             ?disabled=${props.busy}
             @click=${(event: Event) => {
               event.stopPropagation();
-              props.onRemove(job);
+              if (window.confirm("Are you sure you want to remove this cron job?")) {
+                props.onRemove(job);
+              }
             }}
           >
             Remove

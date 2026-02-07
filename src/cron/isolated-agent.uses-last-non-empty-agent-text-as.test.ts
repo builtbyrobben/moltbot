@@ -479,7 +479,15 @@ describe("runCronIsolatedAgentTurn", () => {
         sendMessageSignal: vi.fn(),
         sendMessageIMessage: vi.fn(),
       };
-      vi.mocked(runEmbeddedPiAgent).mockReset();
+      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+        payloads: [{ text: "done" }],
+        meta: {
+          durationMs: 5,
+          providerModel: "test/model",
+          inputTokens: 10,
+          outputTokens: 5,
+        },
+      });
 
       const res = await runCronIsolatedAgentTurn({
         cfg: makeCfg(home, storePath),
@@ -494,9 +502,9 @@ describe("runCronIsolatedAgentTurn", () => {
         lane: "cron",
       });
 
-      expect(res.status).toBe("error");
-      expect(res.error).toMatch("invalid model");
-      expect(vi.mocked(runEmbeddedPiAgent)).not.toHaveBeenCalled();
+      // Invalid model override should warn and fall back to default, not fail
+      expect(res.status).toBe("ok");
+      expect(vi.mocked(runEmbeddedPiAgent)).toHaveBeenCalled();
     });
   });
 

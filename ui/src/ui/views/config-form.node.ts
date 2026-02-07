@@ -6,7 +6,9 @@ import {
   humanize,
   isSensitivePath,
   pathKey,
+  resolveConfigImpacts,
   schemaType,
+  toDocsUrl,
   type JsonSchema,
 } from "./config-form.shared.ts";
 
@@ -95,9 +97,218 @@ const icons = {
   `,
 };
 
+type MapFieldGuidance = {
+  addLabel: string;
+  keyPlaceholder: string;
+  keyHelp?: string;
+};
+
+function singularizeLabel(label: string): string {
+  const trimmed = label.trim();
+  if (!trimmed) {
+    return "item";
+  }
+  if (trimmed.endsWith("ies") && trimmed.length > 3) {
+    return `${trimmed.slice(0, -3)}y`;
+  }
+  if (trimmed.endsWith("s") && trimmed.length > 1) {
+    return trimmed.slice(0, -1);
+  }
+  return trimmed;
+}
+
+function inferArrayItemTypeLabel(schema: JsonSchema): string {
+  const type = schemaType(schema);
+  if (type === "string") {
+    return "text";
+  }
+  if (type === "number" || type === "integer") {
+    return "number";
+  }
+  if (type === "boolean") {
+    return "true/false";
+  }
+  if (type === "object") {
+    return "object";
+  }
+  if (type === "array") {
+    return "list";
+  }
+  if (schema.enum?.length) {
+    return "one of the listed options";
+  }
+  return "value";
+}
+
+function inferMapFieldGuidance(
+  path: Array<string | number>,
+  fallbackLabel: string,
+): MapFieldGuidance {
+  const segments = path.filter((segment): segment is string => typeof segment === "string");
+  const leaf = segments[segments.length - 1]?.toLowerCase() ?? "";
+  const secondLast = segments[segments.length - 2]?.toLowerCase() ?? "";
+  const channelId = segments[1]?.toLowerCase();
+
+  if (leaf === "accounts") {
+    return {
+      addLabel: "Add Account",
+      keyPlaceholder: "main",
+      keyHelp: "Use a stable account ID key (for example: main, work, or backup).",
+    };
+  }
+  if (leaf === "guilds") {
+    return {
+      addLabel: "Add Guild",
+      keyPlaceholder: "123456789012345678",
+      keyHelp: "Use Discord guild IDs (or configured slugs).",
+    };
+  }
+  if (leaf === "channels" && (channelId === "discord" || secondLast === "guilds")) {
+    return {
+      addLabel: "Add Channel",
+      keyPlaceholder: "123456789012345678",
+      keyHelp: "Use Discord channel IDs.",
+    };
+  }
+  if (leaf === "channels" && channelId === "slack") {
+    return {
+      addLabel: "Add Channel",
+      keyPlaceholder: "C1234567890",
+      keyHelp: "Use Slack channel IDs (or canonical channel keys from your config).",
+    };
+  }
+  if (leaf === "groups" && channelId === "googlechat") {
+    return {
+      addLabel: "Add Space",
+      keyPlaceholder: "spaces/AAAA1234",
+      keyHelp: "Use Google Chat space IDs.",
+    };
+  }
+  if (leaf === "groups") {
+    return {
+      addLabel: "Add Group",
+      keyPlaceholder: "group-id",
+      keyHelp: "Use a group/chat ID key recognized by this channel.",
+    };
+  }
+  if (leaf === "dms") {
+    return {
+      addLabel: "Add DM",
+      keyPlaceholder: "user-id",
+      keyHelp: "Use the sender/user ID for per-DM overrides.",
+    };
+  }
+  if (leaf === "entries") {
+    return {
+      addLabel: "Add Entry",
+      keyPlaceholder: "plugin-id",
+      keyHelp: "Use a unique entry key (for example a plugin or provider ID).",
+    };
+  }
+  const singular = singularizeLabel(fallbackLabel);
+  return {
+    addLabel: `Add ${humanize(singular)}`,
+    keyPlaceholder: "custom-key",
+  };
+}
+
+function impactToneClass(relation: "requires" | "conflicts" | "recommends" | "risk"): string {
+  if (relation === "requires" || relation === "conflicts") {
+    return "danger";
+  }
+  if (relation === "risk") {
+    return "warn";
+  }
+  return "info";
+}
+
+function renderFieldAssist(params: {
+  path: Array<string | number>;
+  hints: ConfigUiHints;
+  help?: string;
+  rootValue: unknown;
+  disabled: boolean;
+  onPatch: (path: Array<string | number>, value: unknown) => void;
+}): TemplateResult | typeof nothing {
+  const { path, hints, help, rootValue, disabled, onPatch } = params;
+  const hint = hintForPath(path, hints);
+  const docsUrl = toDocsUrl(hint?.docsPath);
+  const impacts = resolveConfigImpacts({ path, hints, rootValue });
+  if (!help && !docsUrl && impacts.length === 0) {
+    return nothing;
+  }
+  return html`
+    <div class="cfg-field__assist">
+      ${help ? html`<div class="cfg-field__help">${help}</div>` : nothing}
+      ${
+        docsUrl
+          ? html`
+              <a
+                class="cfg-field__docs"
+                href=${docsUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="Open docs in a new tab"
+              >
+                Docs
+              </a>
+            `
+          : nothing
+      }
+      ${
+        impacts.length > 0
+          ? html`
+              <div class="cfg-impact-list">
+                ${impacts.map((impact) => {
+                  const docsHref = toDocsUrl(impact.docsPath);
+                  return html`
+                    <div class="cfg-impact cfg-impact--${impactToneClass(impact.relation)}">
+                      <span>${impact.message}</span>
+                      <div class="cfg-impact__actions">
+                        ${
+                          docsHref
+                            ? html`
+                                <a
+                                  class="cfg-impact__link"
+                                  href=${docsHref}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Guide
+                                </a>
+                              `
+                            : nothing
+                        }
+                        ${
+                          impact.targetPath && impact.fixValue !== undefined
+                            ? html`
+                                <button
+                                  type="button"
+                                  class="btn quiet btn--sm"
+                                  ?disabled=${disabled}
+                                  @click=${() => onPatch(impact.targetPath!.split("."), impact.fixValue)}
+                                >
+                                  ${impact.fixLabel ?? "Apply fix"}
+                                </button>
+                              `
+                            : nothing
+                        }
+                      </div>
+                    </div>
+                  `;
+                })}
+              </div>
+            `
+          : nothing
+      }
+    </div>
+  `;
+}
+
 export function renderNode(params: {
   schema: JsonSchema;
   value: unknown;
+  rootValue: unknown;
   path: Array<string | number>;
   hints: ConfigUiHints;
   unsupported: Set<string>;
@@ -105,7 +316,7 @@ export function renderNode(params: {
   showLabel?: boolean;
   onPatch: (path: Array<string | number>, value: unknown) => void;
 }): TemplateResult | typeof nothing {
-  const { schema, value, path, hints, unsupported, disabled, onPatch } = params;
+  const { schema, value, rootValue, path, hints, unsupported, disabled, onPatch } = params;
   const showLabel = params.showLabel ?? true;
   const type = schemaType(schema);
   const hint = hintForPath(path, hints);
@@ -147,10 +358,18 @@ export function renderNode(params: {
     if (allLiterals && literals.length > 0 && literals.length <= 5) {
       // Use segmented control for small sets
       const resolvedValue = value ?? schema.default;
+      const assist = renderFieldAssist({
+        path,
+        hints,
+        help,
+        rootValue,
+        disabled,
+        onPatch,
+      });
       return html`
         <div class="cfg-field">
           ${showLabel ? html`<label class="cfg-field__label">${label}</label>` : nothing}
-          ${help ? html`<div class="cfg-field__help">${help}</div>` : nothing}
+          ${assist}
           <div class="cfg-segmented">
             ${literals.map(
               (lit) => html`
@@ -212,10 +431,18 @@ export function renderNode(params: {
     const options = schema.enum;
     if (options.length <= 5) {
       const resolvedValue = value ?? schema.default;
+      const assist = renderFieldAssist({
+        path,
+        hints,
+        help,
+        rootValue,
+        disabled,
+        onPatch,
+      });
       return html`
         <div class="cfg-field">
           ${showLabel ? html`<label class="cfg-field__label">${label}</label>` : nothing}
-          ${help ? html`<div class="cfg-field__help">${help}</div>` : nothing}
+          ${assist}
           <div class="cfg-segmented">
             ${options.map(
               (opt) => html`
@@ -254,22 +481,32 @@ export function renderNode(params: {
         : typeof schema.default === "boolean"
           ? schema.default
           : false;
+    const assist = renderFieldAssist({
+      path,
+      hints,
+      help,
+      rootValue,
+      disabled,
+      onPatch,
+    });
     return html`
-      <label class="cfg-toggle-row ${disabled ? "disabled" : ""}">
-        <div class="cfg-toggle-row__content">
-          <span class="cfg-toggle-row__label">${label}</span>
-          ${help ? html`<span class="cfg-toggle-row__help">${help}</span>` : nothing}
-        </div>
-        <div class="cfg-toggle">
-          <input
-            type="checkbox"
-            .checked=${displayValue}
-            ?disabled=${disabled}
-            @change=${(e: Event) => onPatch(path, (e.target as HTMLInputElement).checked)}
-          />
-          <span class="cfg-toggle__track"></span>
-        </div>
-      </label>
+      <div class="cfg-field">
+        <label class="cfg-toggle-row ${disabled ? "disabled" : ""}">
+          <div class="cfg-toggle-row__content">
+            <span class="cfg-toggle-row__label">${label}</span>
+          </div>
+          <div class="cfg-toggle">
+            <input
+              type="checkbox"
+              .checked=${displayValue}
+              ?disabled=${disabled}
+              @change=${(e: Event) => onPatch(path, (e.target as HTMLInputElement).checked)}
+            />
+            <span class="cfg-toggle__track"></span>
+          </div>
+        </label>
+        ${assist}
+      </div>
     `;
   }
 
@@ -295,6 +532,7 @@ export function renderNode(params: {
 function renderTextInput(params: {
   schema: JsonSchema;
   value: unknown;
+  rootValue: unknown;
   path: Array<string | number>;
   hints: ConfigUiHints;
   disabled: boolean;
@@ -302,11 +540,12 @@ function renderTextInput(params: {
   inputType: "text" | "number";
   onPatch: (path: Array<string | number>, value: unknown) => void;
 }): TemplateResult {
-  const { schema, value, path, hints, disabled, onPatch, inputType } = params;
+  const { schema, value, rootValue, path, hints, disabled, onPatch, inputType } = params;
   const showLabel = params.showLabel ?? true;
   const hint = hintForPath(path, hints);
   const label = hint?.label ?? schema.title ?? humanize(String(path.at(-1)));
   const help = hint?.help ?? schema.description;
+  const assist = renderFieldAssist({ path, hints, help, rootValue, disabled, onPatch });
   const isSensitive = hint?.sensitive ?? isSensitivePath(path);
   const placeholder =
     hint?.placeholder ??
@@ -321,7 +560,7 @@ function renderTextInput(params: {
   return html`
     <div class="cfg-field">
       ${showLabel ? html`<label class="cfg-field__label">${label}</label>` : nothing}
-      ${help ? html`<div class="cfg-field__help">${help}</div>` : nothing}
+      ${assist}
       <div class="cfg-input-wrap">
         <input
           type=${isSensitive ? "password" : inputType}
@@ -371,24 +610,26 @@ function renderTextInput(params: {
 function renderNumberInput(params: {
   schema: JsonSchema;
   value: unknown;
+  rootValue: unknown;
   path: Array<string | number>;
   hints: ConfigUiHints;
   disabled: boolean;
   showLabel?: boolean;
   onPatch: (path: Array<string | number>, value: unknown) => void;
 }): TemplateResult {
-  const { schema, value, path, hints, disabled, onPatch } = params;
+  const { schema, value, rootValue, path, hints, disabled, onPatch } = params;
   const showLabel = params.showLabel ?? true;
   const hint = hintForPath(path, hints);
   const label = hint?.label ?? schema.title ?? humanize(String(path.at(-1)));
   const help = hint?.help ?? schema.description;
+  const assist = renderFieldAssist({ path, hints, help, rootValue, disabled, onPatch });
   const displayValue = value ?? schema.default ?? "";
   const numValue = typeof displayValue === "number" ? displayValue : 0;
 
   return html`
     <div class="cfg-field">
       ${showLabel ? html`<label class="cfg-field__label">${label}</label>` : nothing}
-      ${help ? html`<div class="cfg-field__help">${help}</div>` : nothing}
+      ${assist}
       <div class="cfg-number">
         <button
           type="button"
@@ -421,6 +662,7 @@ function renderNumberInput(params: {
 function renderSelect(params: {
   schema: JsonSchema;
   value: unknown;
+  rootValue: unknown;
   path: Array<string | number>;
   hints: ConfigUiHints;
   disabled: boolean;
@@ -428,11 +670,12 @@ function renderSelect(params: {
   options: unknown[];
   onPatch: (path: Array<string | number>, value: unknown) => void;
 }): TemplateResult {
-  const { schema, value, path, hints, disabled, options, onPatch } = params;
+  const { schema, value, rootValue, path, hints, disabled, options, onPatch } = params;
   const showLabel = params.showLabel ?? true;
   const hint = hintForPath(path, hints);
   const label = hint?.label ?? schema.title ?? humanize(String(path.at(-1)));
   const help = hint?.help ?? schema.description;
+  const assist = renderFieldAssist({ path, hints, help, rootValue, disabled, onPatch });
   const resolvedValue = value ?? schema.default;
   const currentIndex = options.findIndex(
     (opt) => opt === resolvedValue || String(opt) === String(resolvedValue),
@@ -442,7 +685,7 @@ function renderSelect(params: {
   return html`
     <div class="cfg-field">
       ${showLabel ? html`<label class="cfg-field__label">${label}</label>` : nothing}
-      ${help ? html`<div class="cfg-field__help">${help}</div>` : nothing}
+      ${assist}
       <select
         class="cfg-select"
         ?disabled=${disabled}
@@ -463,9 +706,104 @@ function renderSelect(params: {
   `;
 }
 
+type ObjectEntry = [string, JsonSchema];
+
+function renderObjectFields(params: {
+  entries: ObjectEntry[];
+  obj: Record<string, unknown>;
+  rootValue: unknown;
+  path: Array<string | number>;
+  hints: ConfigUiHints;
+  unsupported: Set<string>;
+  disabled: boolean;
+  onPatch: (path: Array<string | number>, value: unknown) => void;
+}): TemplateResult {
+  const { entries, obj, rootValue, path, hints, unsupported, disabled, onPatch } = params;
+  const groups: Array<{ label: string; advanced: boolean; entries: ObjectEntry[] }> = [];
+  const indexByKey = new Map<string, number>();
+
+  for (const entry of entries) {
+    const [propKey] = entry;
+    const propHint = hintForPath([...path, propKey], hints);
+    const rawGroup = propHint?.group?.trim();
+    const groupLabel =
+      rawGroup && rawGroup.length > 0 ? rawGroup : propHint?.advanced ? "Advanced" : "General";
+    const advanced = propHint?.advanced === true || groupLabel.toLowerCase() === "advanced";
+    const groupKey = `${advanced ? "1" : "0"}:${groupLabel.toLowerCase()}`;
+    const existingIndex = indexByKey.get(groupKey);
+    if (existingIndex != null) {
+      groups[existingIndex]?.entries.push(entry);
+      continue;
+    }
+    indexByKey.set(groupKey, groups.length);
+    groups.push({
+      label: groupLabel,
+      advanced,
+      entries: [entry],
+    });
+  }
+
+  const useGroupedPresentation =
+    groups.length > 1 || groups.some((group) => group.advanced || group.label !== "General");
+
+  if (!useGroupedPresentation) {
+    const fallbackEntries = groups[0]?.entries ?? entries;
+    return html`${fallbackEntries.map(([propKey, node]) =>
+      renderNode({
+        schema: node,
+        value: obj[propKey],
+        rootValue,
+        path: [...path, propKey],
+        hints,
+        unsupported,
+        disabled,
+        onPatch,
+      }),
+    )}`;
+  }
+
+  return html`
+    ${groups.map((group) => {
+      const body = html`
+        <div class="cfg-group__body">
+          ${group.entries.map(([propKey, node]) =>
+            renderNode({
+              schema: node,
+              value: obj[propKey],
+              rootValue,
+              path: [...path, propKey],
+              hints,
+              unsupported,
+              disabled,
+              onPatch,
+            }),
+          )}
+        </div>
+      `;
+
+      if (group.advanced) {
+        return html`
+          <details class="cfg-group cfg-group--advanced">
+            <summary>${group.label}</summary>
+            ${body}
+          </details>
+        `;
+      }
+
+      return html`
+        <section class="cfg-group">
+          ${group.label !== "General" ? html`<h4 class="cfg-group__title">${group.label}</h4>` : nothing}
+          ${body}
+        </section>
+      `;
+    })}
+  `;
+}
+
 function renderObject(params: {
   schema: JsonSchema;
   value: unknown;
+  rootValue: unknown;
   path: Array<string | number>;
   hints: ConfigUiHints;
   unsupported: Set<string>;
@@ -473,7 +811,7 @@ function renderObject(params: {
   showLabel?: boolean;
   onPatch: (path: Array<string | number>, value: unknown) => void;
 }): TemplateResult {
-  const { schema, value, path, hints, unsupported, disabled, onPatch } = params;
+  const { schema, value, rootValue, path, hints, unsupported, disabled, onPatch } = params;
   const hint = hintForPath(path, hints);
   const label = hint?.label ?? schema.title ?? humanize(String(path.at(-1)));
   const help = hint?.help ?? schema.description;
@@ -504,22 +842,22 @@ function renderObject(params: {
   if (path.length === 1) {
     return html`
       <div class="cfg-fields">
-        ${sorted.map(([propKey, node]) =>
-          renderNode({
-            schema: node,
-            value: obj[propKey],
-            path: [...path, propKey],
-            hints,
-            unsupported,
-            disabled,
-            onPatch,
-          }),
-        )}
+        ${renderObjectFields({
+          entries: sorted,
+          obj,
+          rootValue,
+          path,
+          hints,
+          unsupported,
+          disabled,
+          onPatch,
+        })}
         ${
           allowExtra
             ? renderMapField({
                 schema: additional,
                 value: obj,
+                rootValue,
                 path,
                 hints,
                 unsupported,
@@ -534,30 +872,31 @@ function renderObject(params: {
   }
 
   // Nested objects get collapsible treatment
+  const defaultOpen = path.length <= 2 && hint?.advanced !== true;
   return html`
-    <details class="cfg-object" open>
+    <details class="cfg-object" ?open=${defaultOpen}>
       <summary class="cfg-object__header">
         <span class="cfg-object__title">${label}</span>
         <span class="cfg-object__chevron">${icons.chevronDown}</span>
       </summary>
       ${help ? html`<div class="cfg-object__help">${help}</div>` : nothing}
       <div class="cfg-object__content">
-        ${sorted.map(([propKey, node]) =>
-          renderNode({
-            schema: node,
-            value: obj[propKey],
-            path: [...path, propKey],
-            hints,
-            unsupported,
-            disabled,
-            onPatch,
-          }),
-        )}
+        ${renderObjectFields({
+          entries: sorted,
+          obj,
+          rootValue,
+          path,
+          hints,
+          unsupported,
+          disabled,
+          onPatch,
+        })}
         ${
           allowExtra
             ? renderMapField({
                 schema: additional,
                 value: obj,
+                rootValue,
                 path,
                 hints,
                 unsupported,
@@ -575,6 +914,7 @@ function renderObject(params: {
 function renderArray(params: {
   schema: JsonSchema;
   value: unknown;
+  rootValue: unknown;
   path: Array<string | number>;
   hints: ConfigUiHints;
   unsupported: Set<string>;
@@ -582,11 +922,12 @@ function renderArray(params: {
   showLabel?: boolean;
   onPatch: (path: Array<string | number>, value: unknown) => void;
 }): TemplateResult {
-  const { schema, value, path, hints, unsupported, disabled, onPatch } = params;
+  const { schema, value, rootValue, path, hints, unsupported, disabled, onPatch } = params;
   const showLabel = params.showLabel ?? true;
   const hint = hintForPath(path, hints);
   const label = hint?.label ?? schema.title ?? humanize(String(path.at(-1)));
   const help = hint?.help ?? schema.description;
+  const assist = renderFieldAssist({ path, hints, help, rootValue, disabled, onPatch });
 
   const itemsSchema = Array.isArray(schema.items) ? schema.items[0] : schema.items;
   if (!itemsSchema) {
@@ -599,6 +940,9 @@ function renderArray(params: {
   }
 
   const arr = Array.isArray(value) ? value : Array.isArray(schema.default) ? schema.default : [];
+  const singularLabel = singularizeLabel(label);
+  const addLabel = `Add ${humanize(singularLabel)}`;
+  const itemTypeLabel = inferArrayItemTypeLabel(itemsSchema);
 
   return html`
     <div class="cfg-array">
@@ -615,15 +959,16 @@ function renderArray(params: {
           }}
         >
           <span class="cfg-array__add-icon">${icons.plus}</span>
-          Add
+          ${addLabel}
         </button>
       </div>
-      ${help ? html`<div class="cfg-array__help">${help}</div>` : nothing}
+      ${assist}
+      <div class="cfg-array__meta">Each ${singularLabel.toLowerCase()} expects ${itemTypeLabel}.</div>
 
       ${
         arr.length === 0
           ? html`
-              <div class="cfg-array__empty">No items yet. Click "Add" to create one.</div>
+              <div class="cfg-array__empty">No ${label.toLowerCase()} configured yet.</div>
             `
           : html`
         <div class="cfg-array__items">
@@ -631,7 +976,7 @@ function renderArray(params: {
             (item, idx) => html`
             <div class="cfg-array__item">
               <div class="cfg-array__item-header">
-                <span class="cfg-array__item-index">#${idx + 1}</span>
+                <span class="cfg-array__item-index">#${idx + 1} ${singularLabel.toLowerCase()}</span>
                 <button
                   type="button"
                   class="cfg-array__item-remove"
@@ -650,6 +995,7 @@ function renderArray(params: {
                 ${renderNode({
                   schema: itemsSchema,
                   value: item,
+                  rootValue,
                   path: [...path, idx],
                   hints,
                   unsupported,
@@ -671,6 +1017,7 @@ function renderArray(params: {
 function renderMapField(params: {
   schema: JsonSchema;
   value: Record<string, unknown>;
+  rootValue: unknown;
   path: Array<string | number>;
   hints: ConfigUiHints;
   unsupported: Set<string>;
@@ -678,14 +1025,21 @@ function renderMapField(params: {
   reservedKeys: Set<string>;
   onPatch: (path: Array<string | number>, value: unknown) => void;
 }): TemplateResult {
-  const { schema, value, path, hints, unsupported, disabled, reservedKeys, onPatch } = params;
+  const { schema, value, rootValue, path, hints, unsupported, disabled, reservedKeys, onPatch } =
+    params;
+  const hint = hintForPath(path, hints);
+  const label = hint?.label ?? "Custom entries";
+  const help = hint?.help;
+  const assist = renderFieldAssist({ path, hints, help, rootValue, disabled, onPatch });
   const anySchema = isAnySchema(schema);
   const entries = Object.entries(value ?? {}).filter(([key]) => !reservedKeys.has(key));
+  const guidance = inferMapFieldGuidance(path, label);
+  const mapValueType = inferArrayItemTypeLabel(schema);
 
   return html`
     <div class="cfg-map">
       <div class="cfg-map__header">
-        <span class="cfg-map__label">Custom entries</span>
+        <span class="cfg-map__label">${label}</span>
         <button
           type="button"
           class="cfg-map__add"
@@ -703,14 +1057,20 @@ function renderMapField(params: {
           }}
         >
           <span class="cfg-map__add-icon">${icons.plus}</span>
-          Add Entry
+          ${guidance.addLabel}
         </button>
       </div>
+      ${assist}
+      ${
+        guidance.keyHelp
+          ? html`<div class="cfg-map__meta">${guidance.keyHelp}</div>`
+          : html`<div class="cfg-map__meta">Value type: ${mapValueType}.</div>`
+      }
 
       ${
         entries.length === 0
           ? html`
-              <div class="cfg-map__empty">No custom entries.</div>
+              <div class="cfg-map__empty">No ${label.toLowerCase()} configured yet.</div>
             `
           : html`
         <div class="cfg-map__items">
@@ -723,7 +1083,7 @@ function renderMapField(params: {
                   <input
                     type="text"
                     class="cfg-input cfg-input--sm"
-                    placeholder="Key"
+                    placeholder=${guidance.keyPlaceholder}
                     .value=${key}
                     ?disabled=${disabled}
                     @change=${(e: Event) => {
@@ -769,6 +1129,7 @@ function renderMapField(params: {
                       : renderNode({
                           schema,
                           value: entryValue,
+                          rootValue,
                           path: valuePath,
                           hints,
                           unsupported,
